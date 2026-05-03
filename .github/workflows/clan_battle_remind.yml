@@ -1,0 +1,72 @@
+name: Clan Battle Smart Reminder
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'  # 30分おきに通知判定
+    - cron: '0 20 * * *'    # 日本時間 05:00 (UTC 20:00) にリセット実行
+  workflow_dispatch:
+
+jobs:
+  manage-reminder:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Daily Reset Status
+        # 日本時間 05:00 の実行時のみ、statusをactiveに戻す
+        if: github.event.schedule == '0 20 * * *'
+        run: |
+          echo "active" > status.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add status.txt
+          git commit -m "Reset status to active for the new day" || echo "No changes"
+          git push
+
+      - name: Send Reminder
+        # 30分おき実行 または 手動実行の時に判定
+        if: github.event.schedule == '*/30 * * * *' || github.event_name == 'workflow_dispatch'
+        run: |
+          # 日本時間の「日」と「時」を取得
+          DAY=$(date -d "+9 hours" +%d)
+          HOUR=$(date -d "+9 hours" +%H)
+          
+          # 月末6日間の判定
+          LAST_DAY=$(date -d "-$(date -d "+9 hours" +%d) days +1 month +9 hours" +%d)
+          START_DAY=$((LAST_DAY - 5))
+          
+          STATUS=$(cat status.txt)
+
+          # 送信条件：
+          # 1. 手動実行(workflow_dispatch) の場合は無条件で送る
+          # 2. 自動実行の場合：
+          #    - 月末6日間である
+          #    - かつ、ステータスが "active" である
+          #    - かつ、日本時間で 19時以降 または 5時未満（夜19:00〜朝04:59）である
+          
+          IS_TIME_TO_REMIND=false
+          if [ "$HOUR" -ge 19 ] || [ "$HOUR" -lt 5 ]; then
+            IS_TIME_TO_REMIND=true
+          fi
+
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "手動実行のため通知を送ります"
+            SEND=true
+          elif [ "$STATUS" == "active" ] && [ "$IS_TIME_TO_REMIND" = true ]; then
+            echo "通知時間内のため送信します"
+            SEND=true
+          else
+            echo "条件外のためスキップします (現在 $HOUR 時 / ステータス $STATUS)"
+            SEND=false
+          fi
+
+          if [ "$SEND" = true ]; then
+            curl -H "Content-Type: application/json" \
+                 -X POST \
+                 -d "{\"content\": \"@everyone クランバトルは終わりましたか？ \n終わったらこちらから報告してください：https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/\"}" \
+                 ${{ secrets.DISCORD_WEBHOOK_URL }}
+          fi
