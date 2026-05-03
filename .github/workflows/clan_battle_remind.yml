@@ -1,31 +1,44 @@
-name: Clan Battle Loop Reminder
+name: Clan Battle Smart Reminder
 
 on:
   schedule:
-    - cron: '*/30 * * * *' # 30分おきに実行
+    - cron: '*/30 * * * *'  # 30分おき
+    - cron: '0 15 * * *'    # 日本時間 0:00 (UTC 15:00) にリセット実行
   workflow_dispatch:
 
 jobs:
-  remind:
+  manage-reminder:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # GitHubが自分自身のファイルを書き換えるために必要
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Check Status and Date
+      - name: Daily Reset Status
+        # 日本時間 0:00 の実行時のみ、statusをactiveに戻す
+        if: github.event.schedule == '0 15 * * *'
         run: |
-          # 1. 月末6日間か判定
+          echo "active" > status.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add status.txt
+          git commit -m "Reset status to active for the new day" || echo "No changes"
+          git push
+
+      - name: Send Reminder
+        # 30分おき実行の時のみ、通知判定を行う
+        if: github.event.schedule == '*/30 * * * *'
+        run: |
           DAY=$(date +%d)
           LAST_DAY=$(date -d "-$(date +%d) days +1 month" +%d)
           START_DAY=$((LAST_DAY - 5))
-          
-          # 2. 停止フラグ（status.txtの中身）を確認
-          # status.txt に "done" と書いてあれば実行しない
           STATUS=$(cat status.txt)
 
-          if [ "$DAY" -ge "$START_DAY" ] && [ "$DAY" -le "$LAST_DAY" ] && [ "$STATUS" != "done" ]; then
+          if [ "$DAY" -ge "$START_DAY" ] && [ "$DAY" -le "$LAST_DAY" ] && [ "$STATUS" == "active" ]; then
             curl -H "Content-Type: application/json" \
                  -X POST \
-                 -d "{\"content\": \"@everyone クランバトルは終わりましたか？終わったらGitHubのstatusを更新してください！\"}" \
+                 -d "{\"content\": \"@everyone クランバトルは終わりましたか？ \n終わったらGitHubでstatus.txtをdoneに書き換えてください！\"}" \
                  ${{ secrets.DISCORD_WEBHOOK_URL }}
           fi
