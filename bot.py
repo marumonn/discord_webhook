@@ -19,7 +19,6 @@ FILE_PATH = 'status.txt'
 
 # Bot 設定
 intents = discord.Intents.default()
-intents.message_content = True
 intents.reactions = True
 bot = commands.Bot(command_prefix='!', intents=intents)
 
