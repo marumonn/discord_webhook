@@ -105,13 +105,9 @@ async def send_reminder():
         return
     
     try:
-        try:
-            channel = await bot.fetch_channel(CHANNEL_ID)
-        except discord.NotFound:
+        channel = bot.get_channel(CHANNEL_ID)
+        if channel is None:
             print(f"⚠️ チャンネル {CHANNEL_ID} が見つかりません")
-            return
-        except discord.Forbidden:
-            print(f"⚠️ チャンネル {CHANNEL_ID} にアクセス権限がありません")
             return
         
         # 日本時間の時刻を取得
@@ -169,11 +165,9 @@ async def reset_status():
             await update_status('active', 'system')
             
             if CHANNEL_ID != 0:
-                try:
-                    channel = await bot.fetch_channel(CHANNEL_ID)
+                channel = bot.get_channel(CHANNEL_ID)
+                if channel:
                     await channel.send("🔄 **デイリーリセット実行** - status.txt を 'active' にリセットしました。")
-                except (discord.NotFound, discord.Forbidden) as e:
-                    print(f"⚠️ チャンネルにアクセスできません: {e}")
             
             print("✅ Daily reset completed")
             
