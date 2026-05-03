@@ -1,44 +1,32 @@
-name: Clan Battle Smart Reminder
+name: Clan Battle Simple Test
 
 on:
+  workflow_dispatch: # 手動実行用ボタンを有効化
   schedule:
-    - cron: '*/30 * * * *'  # 30分おき
-    - cron: '0 15 * * *'    # 日本時間 0:00 (UTC 15:00) にリセット実行
-  workflow_dispatch:
+    - cron: '*/30 * * * *' # 30分おき（不要ならこの2行を消してください）
 
 jobs:
-  manage-reminder:
+  remind:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # GitHubが自分自身のファイルを書き換えるために必要
+      contents: write
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Daily Reset Status
-        # 日本時間 0:00 の実行時のみ、statusをactiveに戻す
-        if: github.event.schedule == '0 15 * * *'
+      - name: Send Message to Discord
         run: |
-          echo "active" > status.txt
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add status.txt
-          git commit -m "Reset status to active for the new day" || echo "No changes"
-          git push
-
-      - name: Send Reminder
-        # 30分おき実行の時のみ、通知判定を行う
-        if: github.event.schedule == '*/30 * * * *'
-        run: |
-          DAY=$(date +%d)
-          LAST_DAY=$(date -d "-$(date +%d) days +1 month" +%d)
-          START_DAY=$((LAST_DAY - 5))
+          # status.txtの中身を確認
           STATUS=$(cat status.txt)
-
+          
+          # 「active」の時だけ通知を送る（「done」なら送らない）
           if [ "$STATUS" == "active" ]; then
+            echo "通知を送信します"
             curl -H "Content-Type: application/json" \
                  -X POST \
-                 -d "{\"content\": \"@everyone クランバトルは終わりましたか？ \n終わったらGitHubでstatus.txtをdoneに書き換えてください！\"}" \
+                 -d "{\"content\": \"@everyone クランバトルは終わりましたか？ \n終わったらこちらから報告してください：https://YOUR_USERNAME.github.io/YOUR_REPO_NAME/\"}" \
                  ${{ secrets.DISCORD_WEBHOOK_URL }}
+          else
+            echo "ステータスが $STATUS のため、通知をスキップしました"
           fi
