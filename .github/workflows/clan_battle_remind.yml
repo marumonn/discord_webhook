@@ -36,7 +36,7 @@ jobs:
           START_DAY=$((LAST_DAY - 5))
           STATUS=$(cat status.txt)
 
-          if [ "$DAY" -ge "$START_DAY" ] && [ "$DAY" -le "$LAST_DAY" ] && [ "$STATUS" == "active" ]; then
+          if [ "$STATUS" == "active" ]; then
             curl -H "Content-Type: application/json" \
                  -X POST \
                  -d "{\"content\": \"@everyone クランバトルは終わりましたか？ \n終わったらGitHubでstatus.txtをdoneに書き換えてください！\"}" \
