@@ -1,0 +1,31 @@
+name: Clan Battle Loop Reminder
+
+on:
+  schedule:
+    - cron: '*/30 * * * *' # 30分おきに実行
+  workflow_dispatch:
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check Status and Date
+        run: |
+          # 1. 月末6日間か判定
+          DAY=$(date +%d)
+          LAST_DAY=$(date -d "-$(date +%d) days +1 month" +%d)
+          START_DAY=$((LAST_DAY - 5))
+          
+          # 2. 停止フラグ（status.txtの中身）を確認
+          # status.txt に "done" と書いてあれば実行しない
+          STATUS=$(cat status.txt)
+
+          if [ "$DAY" -ge "$START_DAY" ] && [ "$DAY" -le "$LAST_DAY" ] && [ "$STATUS" != "done" ]; then
+            curl -H "Content-Type: application/json" \
+                 -X POST \
+                 -d "{\"content\": \"@everyone クランバトルは終わりましたか？終わったらGitHubのstatusを更新してください！\"}" \
+                 ${{ secrets.DISCORD_WEBHOOK_URL }}
+          fi
