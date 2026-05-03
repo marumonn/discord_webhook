@@ -56,7 +56,7 @@ jobs:
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             echo "手動実行のため通知を送ります"
             SEND=true
-          elif [ "$DAY" -ge "$START_DAY" ] && [ "$DAY" -le "$LAST_DAY" ] && [ "$STATUS" == "active" ] && [ "$IS_TIME_TO_REMIND" = true ]; then
+          elif [ "$STATUS" == "active" ] && [ "$IS_TIME_TO_REMIND" = true ]; then
             echo "通知時間内のため送信します"
             SEND=true
           else
