@@ -6,6 +6,7 @@ from datetime import datetime
 import pytz
 import requests
 import base64
+import calendar
 
 load_dotenv()
 
@@ -19,6 +20,14 @@ FILE_PATH = 'status.txt'
 
 intents = discord.Intents.default()
 bot = commands.Bot(command_prefix='!', intents=intents)
+
+
+# =========================
+# 月末6日判定
+# =========================
+def is_last_6_days(now):
+    last_day = calendar.monthrange(now.year, now.month)[1]
+    return now.day >= last_day - 5
 
 
 # =========================
@@ -114,6 +123,11 @@ async def send_reminder():
     jst = pytz.timezone('Asia/Tokyo')
     now = datetime.now(jst)
 
+    # 月末6日以外は何もしない
+    if not is_last_6_days(now):
+        print("skip: not last 6 days")
+        return
+
     try:
         channel = await bot.fetch_channel(CHANNEL_ID)
     except:
@@ -144,14 +158,17 @@ async def send_reminder():
 # =========================
 # 毎日リセット
 # =========================
-@tasks.loop(minutes=1)
+@tasks.loop(hours=1)  # ← 軽量化
 async def reset_status():
 
     jst = pytz.timezone('Asia/Tokyo')
     now = datetime.now(jst)
 
-    if now.hour == 5 and now.minute == 0:
+    # 月末6日以外は何もしない
+    if not is_last_6_days(now):
+        return
 
+    if now.hour == 5:
         update_status("active", "system")
 
         if CHANNEL_ID != 0:
