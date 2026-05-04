@@ -4,7 +4,8 @@ import os
 from dotenv import load_dotenv
 from datetime import datetime, time
 import pytz
-from github import Github
+import requests
+import json
 
 load_dotenv()
 
@@ -62,27 +63,35 @@ class DoneButton(discord.ui.View):
 async def update_status(status, user):
     """GitHub の status.txt を更新"""
     try:
-        g = Github(GITHUB_TOKEN)
-        repo = g.get_user(OWNER).get_repo(REPO)
+        headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+        api_url = f"https://api.github.com/repos/{OWNER}/{REPO}/contents/{FILE_PATH}"
         
-        # 現在の status.txt を取得
+        # 現在のファイル情報を取得
         try:
-            file_content = repo.get_contents(FILE_PATH)
-            repo.update_file(
-                path=FILE_PATH,
-                message=f"Status updated to {status} by {user} via Discord",
-                content=status,
-                sha=file_content.sha,
-                committer={"name": "discord-bot", "email": "bot@discord.local"}
-            )
-        except:
-            # ファイルが存在しない場合は作成
-            repo.create_file(
-                path=FILE_PATH,
-                message=f"Status created: {status} by {user} via Discord",
-                content=status,
-                committer={"name": "discord-bot", "email": "bot@discord.local"}
-            )
+            response = requests.get(api_url, headers=headers, timeout=10)
+            response.raise_for_status()
+            file_data = response.json()
+            sha = file_data['sha']
+            
+            # ファイルを更新
+            update_data = {
+                "message": f"Status updated to {status} by {user} via Discord",
+                "content": status,
+                "sha": sha,
+                "committer": {"name": "discord-bot", "email": "bot@discord.local"}
+            }
+            requests.put(api_url, headers=headers, json=update_data, timeout=10)
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 404:
+                # ファイルが存在しない場合は作成
+                create_data = {
+                    "message": f"Status created: {status} by {user} via Discord",
+                    "content": status,
+                    "committer": {"name": "discord-bot", "email": "bot@discord.local"}
+                }
+                requests.put(api_url, headers=headers, json=create_data, timeout=10)
+            else:
+                raise
         
         print(f"✅ Status updated: {status} by {user} at {datetime.now()}")
         
@@ -109,10 +118,13 @@ async def send_reminder():
         except discord.Forbidden:
             print(f"⚠️ チャンネル {CHANNEL_ID} にアクセス権限がありません")
             return
-        
-        # 日本時間の時刻を取得
-        jst = pytz.timezone('Asia/Tokyo')
-        now_jst = datetime.now(jst)
+        headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+            api_url = f"https://api.github.com/repos/{OWNER}/{REPO}/contents/{FILE_PATH}"
+            response = requests.get(api_url, headers=headers, timeout=10)
+            response.raise_for_status()
+            file_data = response.json()
+            import base64
+            status = base64.b64decode(file_data['content'])
         current_hour = now_jst.hour
         
         # status.txt を確認
@@ -197,17 +209,13 @@ async def on_ready():
 async def status(ctx):
     """現在の status.txt を確認"""
     try:
-        await ctx.defer()
-        
-        # GitHub から status を取得
-        g = Github(GITHUB_TOKEN)
-        repo = g.get_user(OWNER).get_repo(REPO)
-        file_content = repo.get_contents(FILE_PATH)
-        status_value = file_content.decoded_content.decode().strip()
-
-        embed = discord.Embed(
-            title="📊 Status Check",
-            description=f"**現在のステータス**: `{status_value}`",
+        headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+        api_url = f"https://api.github.com/repos/{OWNER}/{REPO}/contents/{FILE_PATH}"
+        response = requests.get(api_url, headers=headers, timeout=10)
+        response.raise_for_status()
+        file_data = response.json()
+        import base64
+        status_value = base64.b64decode(file_data['content']).decode().strip()    description=f"**現在のステータス**: `{status_value}`",
             color=discord.Color.green() if status_value == 'active' else discord.Color.orange()
         )
         
