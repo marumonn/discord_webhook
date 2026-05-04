@@ -117,15 +117,15 @@ async def send_reminder():
         
         # status.txt を確認
         try:
-            status_cmd = f'git show HEAD:{FILE_PATH}'
-            result = subprocess.run(f'cd /tmp && git clone --depth 1 https://{GITHUB_TOKEN}@github.com/{OWNER}/{REPO}.git', 
-                                  shell=True, capture_output=True)
-            with open(f'/tmp/{REPO}/{FILE_PATH}', 'r') as f:
-                status = f.read().strip()
-        exceg = Github(GITHUB_TOKEN)
+            g = Github(GITHUB_TOKEN)
             repo = g.get_user(OWNER).get_repo(REPO)
             file_content = repo.get_contents(FILE_PATH)
-            status = file_content.decoded_content.decoderent_hour >= 19 or current_hour < 5)
+            status = file_content.decoded_content.decode().strip()
+        except:
+            status = 'active'
+
+        # 送信条件：19:00～05:00 かつ status が active
+        IS_REMINDER_TIME = (current_hour >= 19 or current_hour < 5)
         
         if IS_REMINDER_TIME and status == 'active':
             embed = discord.Embed(
@@ -200,11 +200,11 @@ async def status(ctx):
         await ctx.defer()
         
         # GitHub から status を取得
-        get_status_cmd = f'cd /tmp && git clone --depth 1 https://{GITHUB_TOKEN}@github.com/{OWNER}/{REPO}.git temp_status'
-        s = Github(GITHUB_TOKEN)
+        g = Github(GITHUB_TOKEN)
         repo = g.get_user(OWNER).get_repo(REPO)
         file_content = repo.get_contents(FILE_PATH)
-        status_value = file_content.decoded_content.decode
+        status_value = file_content.decoded_content.decode().strip()
+
         embed = discord.Embed(
             title="📊 Status Check",
             description=f"**現在のステータス**: `{status_value}`",

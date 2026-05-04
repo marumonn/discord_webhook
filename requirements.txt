@@ -1,4 +1,4 @@
 discord.py==2.3.2
 python-dotenv==1.0.0
 pytz==2023.3
-PyGithub==1.60.1
+PyGithub==2.1.1
