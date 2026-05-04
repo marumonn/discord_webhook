@@ -2,9 +2,9 @@ import discord
 from discord.ext import commands, tasks
 import os
 from dotenv import load_dotenv
-import subprocess
 from datetime import datetime, time
 import pytz
+from github import Github
 
 load_dotenv()
 
@@ -20,6 +20,7 @@ FILE_PATH = 'status.txt'
 # Bot 設定
 intents = discord.Intents.default()
 intents.reactions = True
+intents.message_content = True
 bot = commands.Bot(command_prefix='!', intents=intents)
 
 # グローバル変数：今日の通知メッセージ ID
@@ -61,38 +62,33 @@ class DoneButton(discord.ui.View):
 async def update_status(status, user):
     """GitHub の status.txt を更新"""
     try:
-        # git clone
-        clone_cmd = f'git clone https://{GITHUB_TOKEN}@github.com/{OWNER}/{REPO}.git /tmp/repo_{user}'
-        subprocess.run(clone_cmd, shell=True, check=True, capture_output=True)
+        g = Github(GITHUB_TOKEN)
+        repo = g.get_user(OWNER).get_repo(REPO)
         
-        # status.txt 更新
-        update_cmd = f'echo "{status}" > /tmp/repo_{user}/{FILE_PATH}'
-        subprocess.run(update_cmd, shell=True, check=True, capture_output=True)
-        
-        # git 設定
-        git_config = f'cd /tmp/repo_{user} && git config user.name "discord-bot" && git config user.email "bot@discord.local"'
-        subprocess.run(git_config, shell=True, check=True, capture_output=True)
-        
-        # git add
-        git_add = f'cd /tmp/repo_{user} && git add {FILE_PATH}'
-        subprocess.run(git_add, shell=True, check=True, capture_output=True)
-        
-        # git commit
-        git_commit = f'cd /tmp/repo_{user} && git commit -m "Status updated to {status} by {user} via Discord"'
-        subprocess.run(git_commit, shell=True, check=True, capture_output=True)
-        
-        # git push
-        git_push = f'cd /tmp/repo_{user} && git push'
-        subprocess.run(git_push, shell=True, check=True, capture_output=True)
+        # 現在の status.txt を取得
+        try:
+            file_content = repo.get_contents(FILE_PATH)
+            repo.update_file(
+                path=FILE_PATH,
+                message=f"Status updated to {status} by {user} via Discord",
+                content=status,
+                sha=file_content.sha,
+                committer={"name": "discord-bot", "email": "bot@discord.local"}
+            )
+        except:
+            # ファイルが存在しない場合は作成
+            repo.create_file(
+                path=FILE_PATH,
+                message=f"Status created: {status} by {user} via Discord",
+                content=status,
+                committer={"name": "discord-bot", "email": "bot@discord.local"}
+            )
         
         print(f"✅ Status updated: {status} by {user} at {datetime.now()}")
         
-    except subprocess.CalledProcessError as e:
-        print(f"❌ Git command failed: {e}")
-        raise Exception(f"GitHub 更新に失敗しました: {e.stderr.decode() if e.stderr else str(e)}")
     except Exception as e:
         print(f"❌ Error in update_status: {e}")
-        raise
+        raise Exception(f"GitHub 更新に失敗しました: {str(e)}")
 
 
 @tasks.loop(minutes=30)
@@ -126,11 +122,10 @@ async def send_reminder():
                                   shell=True, capture_output=True)
             with open(f'/tmp/{REPO}/{FILE_PATH}', 'r') as f:
                 status = f.read().strip()
-        except:
-            status = 'active'
-        
-        # 送信条件：19:00～05:00 かつ status が active
-        IS_REMINDER_TIME = (current_hour >= 19 or current_hour < 5)
+        exceg = Github(GITHUB_TOKEN)
+            repo = g.get_user(OWNER).get_repo(REPO)
+            file_content = repo.get_contents(FILE_PATH)
+            status = file_content.decoded_content.decoderent_hour >= 19 or current_hour < 5)
         
         if IS_REMINDER_TIME and status == 'active':
             embed = discord.Embed(
@@ -206,11 +201,10 @@ async def status(ctx):
         
         # GitHub から status を取得
         get_status_cmd = f'cd /tmp && git clone --depth 1 https://{GITHUB_TOKEN}@github.com/{OWNER}/{REPO}.git temp_status'
-        subprocess.run(get_status_cmd, shell=True, capture_output=True)
-        
-        with open('/tmp/temp_status/status.txt', 'r') as f:
-            status_value = f.read().strip()
-        
+        s = Github(GITHUB_TOKEN)
+        repo = g.get_user(OWNER).get_repo(REPO)
+        file_content = repo.get_contents(FILE_PATH)
+        status_value = file_content.decoded_content.decode
         embed = discord.Embed(
             title="📊 Status Check",
             description=f"**現在のステータス**: `{status_value}`",
